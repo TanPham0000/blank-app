@@ -5,7 +5,6 @@ from notion_client import Client
 from dotenv import load_dotenv
 import os
 
-
 # Laad .env lokaal (of werkt met st.secrets op Streamlit Cloud)
 load_dotenv()
 NOTION_TOKEN = os.getenv("NOTION_TOKEN") or st.secrets["NOTION_TOKEN"]

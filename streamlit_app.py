@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from notion_client import Client
 from dotenv import load_dotenv
+from datetime import datetime
 import os
 
 load_dotenv()
@@ -14,34 +15,53 @@ def chunk_text(text, chunk_size=2000):
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
 
 st.title("Vacature naar Notion")
-url = st.text_input("Voer een vacature-URL in:")
 
-if st.button("Scrape en stuur naar Notion") and url:
-    res = requests.get(url)
-    soup = BeautifulSoup(res.text, "html.parser")
+urls_input = st.text_area(
+    "Voer één of meerdere vacature-URL's in (één per regel):",
+    height=150
+)
 
-    title_tag = soup.select_one("h1")
-    title = title_tag.get_text(strip=True) if title_tag else "Geen titel"
+if st.button("Scrape en stuur naar Notion") and urls_input.strip():
+    urls = [line.strip() for line in urls_input.splitlines() if line.strip()]
+    success_count = 0
+    fail_urls = []
 
-    wrapper = soup.select_one("#pagewrapper")
-    targets = ["h2", "p", "li"]
-    content_blocks = wrapper.select(",".join(targets)) if wrapper else []
+    for url in urls:
+        try:
+            res = requests.get(url)
+            res.raise_for_status()
 
-    full_text = "\n\n".join(el.get_text(strip=True) for el in content_blocks)
-    description = full_text[:2000]
-    extra = full_text[2000:] if len(full_text) > 2000 else ""
+            soup = BeautifulSoup(res.text, "html.parser")
+            title_tag = soup.select_one("h1")
+            title = title_tag.get_text(strip=True) if title_tag else "Geen titel"
 
-    properties = {
-        "Title": {"title": [{"text": {"content": title}}]},
-        "Description": {"rich_text": [{"text": {"content": description}}]},
-    }
+            wrapper = soup.select_one("#pagewrapper")
+            targets = ["h2", "p", "li"]
+            content_blocks = wrapper.select(",".join(targets)) if wrapper else []
 
-    if extra:
-        extra_chunks = chunk_text(extra, 2000)
-        # Create a list of rich_text blocks for the 'Extra' property
-        properties["Extra"] = {
-            "rich_text": [{"text": {"content": chunk}} for chunk in extra_chunks]
-        }
+            full_text = "\n\n".join(el.get_text(strip=True) for el in content_blocks)
+            description = full_text[:2000]
+            extra = full_text[2000:] if len(full_text) > 2000 else ""
 
-    notion.pages.create(parent={"database_id": NOTION_DATABASE_ID}, properties=properties)
-    st.success("✅ Vacature succesvol naar Notion gestuurd.")
+            properties = {
+                "Title": {"title": [{"text": {"content": title}}]},
+                "Description": {"rich_text": [{"text": {"content": description}}]},
+                "Date": {"date": {"start": datetime.now().isoformat()}}
+            }
+
+            if extra:
+                extra_chunks = chunk_text(extra, 2000)
+                properties["Extra"] = {
+                    "rich_text": [{"text": {"content": chunk}} for chunk in extra_chunks]
+                }
+
+            notion.pages.create(parent={"database_id": NOTION_DATABASE_ID}, properties=properties)
+            success_count += 1
+        except Exception as e:
+            fail_urls.append((url, str(e)))
+
+    st.success(f"✅ {success_count} vacatures succesvol naar Notion gestuurd.")
+    if fail_urls:
+        st.error("❌ De volgende URL's konden niet worden verwerkt:")
+        for fail_url, err_msg in fail_urls:
+            st.write(f"- {fail_url}: {err_msg}")

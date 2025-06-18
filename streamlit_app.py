@@ -5,12 +5,13 @@ from notion_client import Client
 from dotenv import load_dotenv
 import os
 
-# Laad .env lokaal (of werkt met st.secrets op Streamlit Cloud)
 load_dotenv()
-NOTION_TOKEN = os.getenv("NOTION_TOKEN") or st.secrets["NOTION_TOKEN"]
-NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID") or st.secrets["NOTION_DATABASE_ID"]
-
+NOTION_TOKEN = st.secrets["NOTION_TOKEN"] or os.getenv("NOTION_TOKEN")
+NOTION_DATABASE_ID = st.secrets["NOTION_DATABASE_ID"] or os.getenv("NOTION_DATABASE_ID")
 notion = Client(auth=NOTION_TOKEN)
+
+def chunk_text(text, chunk_size=2000):
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
 
 st.title("Vacature naar Notion")
 url = st.text_input("Voer een vacature-URL in:")
@@ -36,7 +37,11 @@ if st.button("Scrape en stuur naar Notion") and url:
     }
 
     if extra:
-        properties["Extra"] = {"rich_text": [{"text": {"content": extra}}]}
+        extra_chunks = chunk_text(extra, 2000)
+        # Create a list of rich_text blocks for the 'Extra' property
+        properties["Extra"] = {
+            "rich_text": [{"text": {"content": chunk}} for chunk in extra_chunks]
+        }
 
     notion.pages.create(parent={"database_id": NOTION_DATABASE_ID}, properties=properties)
     st.success("✅ Vacature succesvol naar Notion gestuurd.")

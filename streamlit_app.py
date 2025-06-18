@@ -1,10 +1,10 @@
-# streamlit_app.py
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from notion_client import Client
 from dotenv import load_dotenv
 import os
+
 
 # Laad .env lokaal (of werkt met st.secrets op Streamlit Cloud)
 load_dotenv()
